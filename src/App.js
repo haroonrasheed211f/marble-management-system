@@ -29,6 +29,7 @@ import {
   setDoc,
   deleteDoc
 } from 'firebase/firestore';
+import ToastNotifications from './components/common/ToastNotifications';
 
 function App() {
   const [currentView, setCurrentView] = useState('dashboard');
@@ -399,6 +400,7 @@ const deleteInventoryItem = async (id) => {
   // Main app
   return (
     <div className="App">
+       <ToastNotifications />
       <Navigation 
         currentView={currentView}
         setCurrentView={setCurrentView}

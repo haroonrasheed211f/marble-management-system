@@ -1,5 +1,7 @@
-// components/InventoryManagement.jsx - FIXED VERSION (without unused useEffect)
-import React, { useState } from 'react'; // REMOVED useEffect import
+// components/management/InventoryManagement.jsx - UPDATED WITH TOASTIFY
+import React, { useState } from 'react';
+import { toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 const InventoryManagement = ({ inventory, addInventoryItem, updateInventoryItem, deleteInventoryItem, user }) => {
   const [showForm, setShowForm] = useState(false);
@@ -17,7 +19,6 @@ const InventoryManagement = ({ inventory, addInventoryItem, updateInventoryItem,
   });
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState({ type: '', text: '' });
   const [showLowStock, setShowLowStock] = useState(false);
 
   // Filter inventory by current user
@@ -57,17 +58,63 @@ const InventoryManagement = ({ inventory, addInventoryItem, updateInventoryItem,
     });
   };
 
+  // Toast notification functions
+  const showSuccessToast = (message) => {
+    toast.success(message, {
+      position: "top-right",
+      autoClose: 3000,
+      hideProgressBar: false,
+      closeOnClick: true,
+      pauseOnHover: true,
+      draggable: true,
+      theme: "light",
+    });
+  };
+
+  const showErrorToast = (message) => {
+    toast.error(message, {
+      position: "top-right",
+      autoClose: 4000,
+      hideProgressBar: false,
+      closeOnClick: true,
+      pauseOnHover: true,
+      draggable: true,
+      theme: "light",
+    });
+  };
+
+  const showInfoToast = (message) => {
+    toast.info(message, {
+      position: "top-right",
+      autoClose: 3000,
+      hideProgressBar: false,
+      closeOnClick: true,
+      pauseOnHover: true,
+      draggable: true,
+    });
+  };
+
+  const showWarningToast = (message) => {
+    toast.warning(message, {
+      position: "top-right",
+      autoClose: 4000,
+      hideProgressBar: false,
+      closeOnClick: true,
+      pauseOnHover: true,
+      draggable: true,
+    });
+  };
+
   // Add new inventory item
   const handleSubmit = async (e) => {
     e.preventDefault();
     
     try {
       setLoading(true);
-      setMessage({ type: '', text: '' });
       
       // Validate inputs
       if (!formData.name || !formData.width || !formData.height || !formData.purchasePrice || !formData.quantity) {
-        setMessage({ type: 'error', text: 'Please fill all required fields' });
+        showErrorToast('Please fill all required fields');
         setLoading(false);
         return;
       }
@@ -89,10 +136,16 @@ const InventoryManagement = ({ inventory, addInventoryItem, updateInventoryItem,
         entryDate: new Date().toISOString()
       };
       
+      // Show loading toast
+      const loadingToastId = toast.loading("Adding inventory item...");
+      
       const result = await addInventoryItem(newItem);
       
+      // Dismiss loading toast
+      toast.dismiss(loadingToastId);
+      
       if (result.success) {
-        setMessage({ type: 'success', text: result.message });
+        showSuccessToast(`✅ ${result.message}`);
         setFormData({
           marbleType: 'Granite',
           name: '',
@@ -105,14 +158,13 @@ const InventoryManagement = ({ inventory, addInventoryItem, updateInventoryItem,
         });
         setTimeout(() => {
           setShowForm(false);
-          setMessage({ type: '', text: '' });
-        }, 1500);
+        }, 1000);
       } else {
-        setMessage({ type: 'error', text: result.message });
+        showErrorToast(`❌ ${result.message}`);
       }
     } catch (error) {
       console.error("Submit Error:", error);
-      setMessage({ type: 'error', text: 'Error adding item: ' + error.message });
+      showErrorToast(`Error adding item: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -132,6 +184,7 @@ const InventoryManagement = ({ inventory, addInventoryItem, updateInventoryItem,
       supplier: item.supplier || ''
     });
     setShowEditForm(true);
+    showInfoToast(`Editing: ${item.name}`);
   };
 
   const handleUpdateSubmit = async (e) => {
@@ -139,13 +192,12 @@ const InventoryManagement = ({ inventory, addInventoryItem, updateInventoryItem,
     
     try {
       setLoading(true);
-      setMessage({ type: '', text: '' });
       
       if (!editingItem) return;
       
       // Validate inputs
       if (!formData.name || !formData.width || !formData.height || !formData.purchasePrice || !formData.quantity) {
-        setMessage({ type: 'error', text: 'Please fill all required fields' });
+        showErrorToast('Please fill all required fields');
         setLoading(false);
         return;
       }
@@ -166,10 +218,16 @@ const InventoryManagement = ({ inventory, addInventoryItem, updateInventoryItem,
         supplier: formData.supplier || ''
       };
       
+      // Show loading toast
+      const loadingToastId = toast.loading("Updating item...");
+      
       const result = await updateInventoryItem(editingItem.id, updatedData);
       
+      // Dismiss loading toast
+      toast.dismiss(loadingToastId);
+      
       if (result.success) {
-        setMessage({ type: 'success', text: result.message });
+        showSuccessToast(`✅ ${result.message}`);
         setTimeout(() => {
           setShowEditForm(false);
           setEditingItem(null);
@@ -183,59 +241,132 @@ const InventoryManagement = ({ inventory, addInventoryItem, updateInventoryItem,
             quantity: '',
             supplier: ''
           });
-          setMessage({ type: '', text: '' });
-        }, 1500);
+        }, 1000);
       } else {
-        setMessage({ type: 'error', text: result.message });
+        showErrorToast(`❌ ${result.message}`);
       }
     } catch (error) {
       console.error("Update Error:", error);
-      setMessage({ type: 'error', text: 'Error updating item: ' + error.message });
+      showErrorToast(`Error updating item: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  // Delete inventory item
+  // Delete inventory item with confirmation
   const handleDeleteClick = async (item) => {
-    if (!window.confirm(`Are you sure you want to delete "${item.name}"?\nThis action cannot be undone.`)) {
-      return;
-    }
-    
+    // Custom confirmation dialog
+    toast.warning(
+      <div>
+        <h6>Delete Item</h6>
+        <p>Are you sure you want to delete "{item.name}"?</p>
+        <div className="d-flex gap-2 mt-3">
+          <button 
+            className="btn btn-sm btn-danger flex-grow-1"
+            onClick={() => {
+              toast.dismiss();
+              confirmDeleteItem(item);
+            }}
+          >
+            Yes, Delete
+          </button>
+          <button 
+            className="btn btn-sm btn-secondary flex-grow-1"
+            onClick={() => toast.dismiss()}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>,
+      {
+        position: "top-center",
+        autoClose: false,
+        closeOnClick: false,
+        draggable: false,
+        closeButton: false,
+        theme: "light",
+      }
+    );
+  };
+
+  const confirmDeleteItem = async (item) => {
     try {
       setLoading(true);
-      setMessage({ type: '', text: '' });
+      
+      const loadingToastId = toast.loading("Deleting item...");
       
       const result = await deleteInventoryItem(item.id);
       
+      toast.dismiss(loadingToastId);
+      
       if (result.success) {
-        setMessage({ type: 'success', text: result.message });
-        setTimeout(() => {
-          setMessage({ type: '', text: '' });
-        }, 2000);
+        showSuccessToast(`🗑️ ${result.message}`);
       } else {
-        setMessage({ type: 'error', text: result.message });
+        showErrorToast(`❌ ${result.message}`);
       }
     } catch (error) {
       console.error("Delete Error:", error);
-      setMessage({ type: 'error', text: 'Error deleting item: ' + error.message });
+      showErrorToast(`Error deleting item: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  // Quick add stock
+  // Quick add stock with better dialog
   const handleQuickAddStock = async (item) => {
-    const addAmount = prompt(`Current stock: ${item.quantity} sq.ft\nHow much stock to add? (in sq.ft)`);
-    
-    if (!addAmount || isNaN(addAmount) || parseFloat(addAmount) <= 0) {
-      alert('Please enter a valid amount');
-      return;
-    }
-    
+    toast.info(
+      <div>
+        <h6>Add Stock: {item.name}</h6>
+        <p className="mb-2">Current stock: <strong>{item.quantity} sq.ft</strong></p>
+        <input
+          type="number"
+          id="stockAmount"
+          className="form-control mb-3"
+          placeholder="Enter amount to add (sq.ft)"
+          step="0.01"
+          min="0.01"
+          autoFocus
+        />
+        <div className="d-flex gap-2">
+          <button 
+            className="btn btn-sm btn-success flex-grow-1"
+            onClick={() => {
+              const amountInput = document.getElementById('stockAmount');
+              const amount = amountInput.value;
+              if (!amount || isNaN(amount) || parseFloat(amount) <= 0) {
+                showErrorToast("Please enter a valid amount!");
+                return;
+              }
+              toast.dismiss();
+              confirmAddStock(item, amount);
+            }}
+          >
+            Add Stock
+          </button>
+          <button 
+            className="btn btn-sm btn-secondary flex-grow-1"
+            onClick={() => toast.dismiss()}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>,
+      {
+        position: "top-center",
+        autoClose: false,
+        closeOnClick: false,
+        draggable: false,
+        closeButton: false,
+        theme: "light",
+      }
+    );
+  };
+
+  const confirmAddStock = async (item, addAmount) => {
     try {
       setLoading(true);
-      setMessage({ type: '', text: '' });
+      
+      const loadingToastId = toast.loading(`Adding ${addAmount} sq.ft...`);
       
       const newQuantity = parseFloat(item.quantity) + parseFloat(addAmount);
       const updatedData = {
@@ -245,18 +376,30 @@ const InventoryManagement = ({ inventory, addInventoryItem, updateInventoryItem,
       
       const result = await updateInventoryItem(item.id, updatedData);
       
+      toast.dismiss(loadingToastId);
+      
       if (result.success) {
-        setMessage({ type: 'success', text: `Added ${addAmount} sq.ft to ${item.name}. New stock: ${newQuantity.toFixed(2)} sq.ft` });
-        setTimeout(() => {
-          setMessage({ type: '', text: '' });
-        }, 2000);
+        showSuccessToast(`📦 Added ${addAmount} sq.ft to ${item.name}\nNew stock: ${newQuantity.toFixed(2)} sq.ft`);
       } else {
-        setMessage({ type: 'error', text: result.message });
+        showErrorToast(`❌ ${result.message}`);
       }
     } catch (error) {
-      setMessage({ type: 'error', text: 'Error adding stock: ' + error.message });
+      showErrorToast(`Error adding stock: ${error.message}`);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Show low stock warning on button click
+  const handleLowStockClick = () => {
+    setShowLowStock(!showLowStock);
+    if (lowStockItems.length > 0 && !showLowStock) {
+      showWarningToast(
+        `⚠️ ${lowStockItems.length} items have low stock (<10 sq.ft)`,
+        {
+          autoClose: 5000,
+        }
+      );
     }
   };
 
@@ -287,7 +430,10 @@ const InventoryManagement = ({ inventory, addInventoryItem, updateInventoryItem,
         <div className="d-flex gap-2">
           <button 
             className="btn btn-primary" 
-            onClick={() => setShowForm(true)}
+            onClick={() => {
+              setShowForm(true);
+              showInfoToast("Adding new inventory item...");
+            }}
             disabled={loading}
           >
             <i className="bi bi-plus-circle me-2"></i>Add New Item
@@ -295,7 +441,7 @@ const InventoryManagement = ({ inventory, addInventoryItem, updateInventoryItem,
           {lowStockItems.length > 0 && (
             <button 
               className="btn btn-warning" 
-              onClick={() => setShowLowStock(!showLowStock)}
+              onClick={handleLowStockClick}
               disabled={loading}
             >
               <i className="bi bi-exclamation-triangle me-2"></i>
@@ -304,14 +450,6 @@ const InventoryManagement = ({ inventory, addInventoryItem, updateInventoryItem,
           )}
         </div>
       </div>
-      
-      {message.text && (
-        <div className={`alert alert-${message.type === 'success' ? 'success' : 'danger'} alert-dismissible fade show mb-4`} role="alert">
-          <i className={`bi bi-${message.type === 'success' ? 'check-circle' : 'exclamation-triangle'} me-2`}></i>
-          {message.text}
-          <button type="button" className="btn-close" onClick={() => setMessage({ type: '', text: '' })}></button>
-        </div>
-      )}
       
       {/* Add New Item Form */}
       {showForm && (
@@ -323,7 +461,7 @@ const InventoryManagement = ({ inventory, addInventoryItem, updateInventoryItem,
               className="btn-close" 
               onClick={() => {
                 setShowForm(false);
-                setMessage({ type: '', text: '' });
+                showInfoToast("Add item cancelled");
                 setFormData({
                   marbleType: 'Granite',
                   name: '',
@@ -485,7 +623,7 @@ const InventoryManagement = ({ inventory, addInventoryItem, updateInventoryItem,
                   className="btn btn-secondary me-2" 
                   onClick={() => {
                     setShowForm(false);
-                    setMessage({ type: '', text: '' });
+                    showInfoToast("Add item cancelled");
                     setFormData({
                       marbleType: 'Granite',
                       name: '',
@@ -530,7 +668,7 @@ const InventoryManagement = ({ inventory, addInventoryItem, updateInventoryItem,
               onClick={() => {
                 setShowEditForm(false);
                 setEditingItem(null);
-                setMessage({ type: '', text: '' });
+                showInfoToast("Edit cancelled");
                 setFormData({
                   marbleType: 'Granite',
                   name: '',
@@ -687,7 +825,7 @@ const InventoryManagement = ({ inventory, addInventoryItem, updateInventoryItem,
                   onClick={() => {
                     setShowEditForm(false);
                     setEditingItem(null);
-                    setMessage({ type: '', text: '' });
+                    showInfoToast("Edit cancelled");
                     setFormData({
                       marbleType: 'Granite',
                       name: '',
@@ -740,13 +878,28 @@ const InventoryManagement = ({ inventory, addInventoryItem, updateInventoryItem,
                   placeholder="Search by name, type, or supplier..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
+                  onFocus={() => showInfoToast("Type to search inventory...")}
                 />
+                {searchTerm && (
+                  <button 
+                    className="btn btn-outline-secondary"
+                    onClick={() => {
+                      setSearchTerm('');
+                      showInfoToast("Search cleared");
+                    }}
+                  >
+                    Clear
+                  </button>
+                )}
               </div>
             </div>
             {showLowStock && (
               <button 
                 className="btn btn-outline-secondary btn-sm"
-                onClick={() => setShowLowStock(false)}
+                onClick={() => {
+                  setShowLowStock(false);
+                  showInfoToast("Showing all items");
+                }}
                 disabled={loading}
               >
                 Show All
@@ -765,7 +918,10 @@ const InventoryManagement = ({ inventory, addInventoryItem, updateInventoryItem,
               {searchTerm && !showLowStock && (
                 <button 
                   className="btn btn-outline-secondary btn-sm"
-                  onClick={() => setSearchTerm('')}
+                  onClick={() => {
+                    setSearchTerm('');
+                    showInfoToast("Search cleared");
+                  }}
                 >
                   Clear search
                 </button>
@@ -773,7 +929,10 @@ const InventoryManagement = ({ inventory, addInventoryItem, updateInventoryItem,
               {showLowStock && (
                 <button 
                   className="btn btn-outline-secondary btn-sm"
-                  onClick={() => setShowLowStock(false)}
+                  onClick={() => {
+                    setShowLowStock(false);
+                    showInfoToast("Showing all items");
+                  }}
                 >
                   Show All Items
                 </button>
