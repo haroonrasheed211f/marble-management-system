@@ -26,7 +26,8 @@ import {
   where,
   getDocs,
   getDoc,
-  setDoc // ADD THIS IMPORT
+  setDoc,
+  deleteDoc
 } from 'firebase/firestore';
 
 function App() {
@@ -267,6 +268,45 @@ function App() {
     }
   };
 
+const updateInventoryItem = async (id, updatedData) => {
+  try {
+    if (!user || !user.uid) {
+      throw new Error("User not authenticated");
+    }
+    
+    const itemRef = doc(db, 'inventory', id);
+    await updateDoc(itemRef, {
+      ...updatedData,
+      updatedAt: serverTimestamp()
+    });
+    
+    // Refresh data
+    await loadFirestoreData(user.uid);
+    
+    return { success: true, message: 'Inventory item updated successfully!' };
+  } catch (error) {
+    console.error('Error updating inventory:', error);
+    return { success: false, message: 'Failed to update item: ' + error.message };
+  }
+};
+
+const deleteInventoryItem = async (id) => {
+  try {
+    if (!user || !user.uid) {
+      throw new Error("User not authenticated");
+    }
+    
+    await deleteDoc(doc(db, 'inventory', id));
+    
+    // Refresh data
+    await loadFirestoreData(user.uid);
+    
+    return { success: true, message: 'Inventory item deleted successfully!' };
+  } catch (error) {
+    console.error('Error deleting inventory:', error);
+    return { success: false, message: 'Failed to delete item: ' + error.message };
+  }
+};
   const updateCustomerAfterSale = async (customerName, customerPhone, amount) => {
     try {
       if (!user || !user.uid || !customerPhone) return;
@@ -387,6 +427,8 @@ function App() {
           <InventoryManagement 
             inventory={inventory}
             addInventoryItem={addInventoryItem}
+            updateInventoryItem={updateInventoryItem} // ADD THIS
+            deleteInventoryItem={deleteInventoryItem} // ADD THIS
             user={user}
           />
         )}
