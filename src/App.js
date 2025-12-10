@@ -3,14 +3,14 @@ import React, { useState, useEffect } from 'react';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
 import './App.css';
-import Navigation from './components/Navigation';
-import Dashboard from './components/Dashboard';
-import InventoryManagement from './components/InventoryManagement';
-import SalesWorkflow from './components/SalesWorkflow';
-import CustomerLedger from './components/CustomerLedger';
-import InvoiceGenerator from './components/InvoiceGenerator';
-import Reports from './components/Reports';
-import LoginSignup from './components/LoginSignup';
+import Navigation from './components/auth/Navigation';
+import Dashboard from './components/management/Dashboard';
+import InventoryManagement from './components/management/InventoryManagement';
+import SalesWorkflow from './components/sales/SalesWorkflow';
+import CustomerLedger from './components/management/CustomerLedger';
+import InvoiceGenerator from './components/utilities/InvoiceGenerator';
+import Reports from './components/management/Reports';
+import LoginSignup from './components/auth/LoginSignup';
 import { auth, db } from './firebase';
 import { 
   onAuthStateChanged, 

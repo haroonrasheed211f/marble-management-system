@@ -5,7 +5,7 @@ import {
   signInWithEmailAndPassword,
   updateProfile 
 } from 'firebase/auth';
-import { auth, db } from '../firebase';
+import { auth, db } from '../../firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 const LoginSignup = ({ onLogin }) => {
