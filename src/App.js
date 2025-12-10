@@ -1,4 +1,4 @@
-// src/App.js
+// src/App.js - UPDATED WITH FIXED IMPORTS
 import React, { useState, useEffect } from 'react';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
@@ -19,14 +19,14 @@ import {
 import { 
   collection, 
   query, 
-  onSnapshot, 
   addDoc, 
   updateDoc, 
   doc, 
   serverTimestamp,
   where,
   getDocs,
-  getDoc
+  getDoc,
+  setDoc // ADD THIS IMPORT
 } from 'firebase/firestore';
 
 function App() {
@@ -49,15 +49,18 @@ function App() {
           const userDocRef = doc(db, 'users', firebaseUser.uid);
           const userDoc = await getDoc(userDocRef);
           let userRole = 'staff';
+          let userName = firebaseUser.displayName || firebaseUser.email.split('@')[0];
           
           if (userDoc.exists()) {
-            userRole = userDoc.data().role || 'staff';
+            const userData = userDoc.data();
+            userRole = userData.role || 'staff';
+            userName = userData.name || userName;
           } else {
             // Create user document if doesn't exist
-            await addDoc(collection(db, 'users'), {
+            await setDoc(userDocRef, { // USE setDoc HERE
               uid: firebaseUser.uid,
               email: firebaseUser.email,
-              name: firebaseUser.displayName || firebaseUser.email.split('@')[0],
+              name: userName,
               role: 'admin', // First user gets admin
               createdAt: serverTimestamp(),
               lastLogin: serverTimestamp()
@@ -69,7 +72,7 @@ function App() {
           setUser({
             uid: firebaseUser.uid,
             email: firebaseUser.email,
-            name: firebaseUser.displayName || firebaseUser.email.split('@')[0],
+            name: userName,
             role: userRole
           });
           
@@ -79,7 +82,7 @@ function App() {
           });
           
           // Load all data
-          await loadFirestoreData();
+          await loadFirestoreData(firebaseUser.uid); // Pass user ID
         } catch (error) {
           console.error("Error in auth state change:", error);
         }
@@ -96,12 +99,15 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  const loadFirestoreData = async () => {
+  const loadFirestoreData = async (userId) => {
     try {
       setLoading(true);
       
-      // Load inventory
-      const inventoryQuery = query(collection(db, 'inventory'));
+      // Load inventory for this user
+      const inventoryQuery = query(
+        collection(db, 'inventory'),
+        where('userId', '==', userId)
+      );
       const inventorySnapshot = await getDocs(inventoryQuery);
       const inventoryData = inventorySnapshot.docs.map(doc => ({
         id: doc.id,
@@ -109,8 +115,11 @@ function App() {
       }));
       setInventory(inventoryData);
       
-      // Load sales
-      const salesQuery = query(collection(db, 'sales'));
+      // Load sales for this user
+      const salesQuery = query(
+        collection(db, 'sales'),
+        where('userId', '==', userId)
+      );
       const salesSnapshot = await getDocs(salesQuery);
       const salesData = salesSnapshot.docs.map(doc => ({
         id: doc.id,
@@ -118,8 +127,11 @@ function App() {
       }));
       setSales(salesData);
       
-      // Load customers
-      const customersQuery = query(collection(db, 'customers'));
+      // Load customers for this user
+      const customersQuery = query(
+        collection(db, 'customers'),
+        where('userId', '==', userId)
+      );
       const customersSnapshot = await getDocs(customersQuery);
       const customersData = customersSnapshot.docs.map(doc => ({
         id: doc.id,
@@ -158,20 +170,21 @@ function App() {
       const totalValue = item.purchasePrice * item.quantity;
       
       const itemData = {
-        marbleType: item.marbleType,
-        name: item.name,
-        width: item.width,
-        height: item.height,
-        unit: item.unit,
-        sqft: item.sqft,
-        purchasePrice: item.purchasePrice,
-        quantity: item.quantity,
-        totalValue: totalValue,
-        supplier: item.supplier || '',
-        entryDate: new Date().toISOString(),
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        userId: user.uid
+      marbleType: item.marbleType,
+      name: item.name,
+      width: item.width,
+      height: item.height,
+      unit: item.unit,
+      sqft: item.sqft,
+      purchasePrice: item.purchasePrice,
+      quantity: item.quantity,
+      totalValue: totalValue,
+      supplier: item.supplier || '',
+      entryDate: new Date().toISOString(),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      userId: user.uid, // MUST INCLUDE THIS
+      userEmail: user.email // Optional but helpful
       };
       
       console.log("Item data for Firestore:", itemData);
@@ -179,8 +192,8 @@ function App() {
       const docRef = await addDoc(collection(db, 'inventory'), itemData);
       console.log("Document written with ID:", docRef.id);
       
-      // Refresh data
-      await loadFirestoreData();
+      // Refresh data for this user
+      await loadFirestoreData(user.uid);
       
       return { success: true, message: 'Inventory item added successfully!' };
     } catch (error) {
@@ -200,6 +213,10 @@ function App() {
 
   const addSale = async (sale) => {
     try {
+      if (!user || !user.uid) {
+        throw new Error("User not authenticated");
+      }
+      
       // Generate invoice number
       const invoiceNumber = `INV-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       
@@ -221,12 +238,13 @@ function App() {
         cementInfo: sale.cementInfo || '',
         invoiceNumber: invoiceNumber,
         userId: user.uid,
+        userEmail: user.email,
         date: serverTimestamp(),
         createdAt: serverTimestamp()
       });
 
       // Update inventory quantity
-      const inventoryItem = inventory.find(item => item.id === sale.inventoryId);
+      const inventoryItem = inventory.find(item => item.id === sale.inventoryId && item.userId === user.uid);
       if (inventoryItem) {
         const newQuantity = inventoryItem.quantity - sale.quantity;
         const inventoryRef = doc(db, 'inventory', sale.inventoryId);
@@ -236,11 +254,11 @@ function App() {
         });
       }
 
-      // Update or create customer
+      // Update or create customer for this user
       await updateCustomerAfterSale(sale.customerName, sale.customerPhone, sale.totalAmount);
 
-      // Refresh all data
-      await loadFirestoreData();
+      // Refresh all data for this user
+      await loadFirestoreData(user.uid);
       
       return { success: true, message: 'Sale completed successfully!' };
     } catch (error) {
@@ -251,11 +269,12 @@ function App() {
 
   const updateCustomerAfterSale = async (customerName, customerPhone, amount) => {
     try {
-      if (!customerPhone) return;
+      if (!user || !user.uid || !customerPhone) return;
       
-      // Check if customer exists by phone
+      // Check if customer exists for this user
       const customersQuery = query(
         collection(db, 'customers'),
+        where('userId', '==', user.uid),
         where('phone', '==', customerPhone)
       );
       const querySnapshot = await getDocs(customersQuery);
@@ -272,10 +291,12 @@ function App() {
           updatedAt: serverTimestamp()
         });
       } else {
-        // Create new customer
+        // Create new customer for this user
         await addDoc(collection(db, 'customers'), {
           name: customerName,
           phone: customerPhone,
+          userId: user.uid,
+          userEmail: user.email,
           totalPurchases: 1,
           totalAmount: amount,
           lastPurchase: serverTimestamp(),
@@ -290,18 +311,24 @@ function App() {
 
   const addCustomer = async (customer) => {
     try {
+      if (!user || !user.uid) {
+        throw new Error("User not authenticated");
+      }
+      
       await addDoc(collection(db, 'customers'), {
         name: customer.name,
         phone: customer.phone || '',
         address: customer.address || '',
+        userId: user.uid,
+        userEmail: user.email,
         totalPurchases: 0,
         totalAmount: 0,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
       
-      // Refresh customers data
-      await loadFirestoreData();
+      // Refresh customers data for this user
+      await loadFirestoreData(user.uid);
       
       return { success: true, message: 'Customer added successfully!' };
     } catch (error) {
@@ -326,7 +353,7 @@ function App() {
 
   // Not authenticated - show login
   if (!isAuthenticated) {
-    return <LoginSignup onLogin={loadFirestoreData} />;
+    return <LoginSignup onLogin={() => {}} />;
   }
 
   // Main app
@@ -340,11 +367,19 @@ function App() {
       />
       
       <div className="container-fluid mt-4">
+        <div className="alert alert-info mb-3">
+          <i className="bi bi-person-circle me-2"></i>
+          Welcome, <strong>{user.name}</strong>! 
+          <span className="badge bg-primary ms-2">{user.role}</span>
+          <span className="badge bg-secondary ms-1">{user.email}</span>
+        </div>
+        
         {currentView === 'dashboard' && (
           <Dashboard 
             inventory={inventory}
             sales={sales}
             customers={customers}
+            user={user}
           />
         )}
         
@@ -370,6 +405,7 @@ function App() {
           <CustomerLedger 
             customers={customers}
             sales={sales}
+            user={user}
           />
         )}
         
@@ -377,6 +413,7 @@ function App() {
           <InvoiceGenerator 
             sales={sales}
             customers={customers}
+            user={user}
           />
         )}
         
@@ -385,6 +422,7 @@ function App() {
             inventory={inventory}
             sales={sales}
             customers={customers}
+            user={user}
           />
         )}
       </div>

@@ -1,47 +1,57 @@
-// components/Reports.jsx
+// components/Reports.jsx - COMPLETE UPDATED CODE
 import React, { useState } from 'react';
 
-const Reports = ({ inventory, sales, customers }) => {
+const Reports = ({ inventory, sales, customers, user }) => {
   const [activeReport, setActiveReport] = useState('inventory');
   const [dateRange, setDateRange] = useState({
     start: new Date().toISOString().split('T')[0],
     end: new Date().toISOString().split('T')[0]
   });
 
-  // Inventory Report Calculations
+  // Filter data by current user
+  const userInventory = inventory.filter(item => item.userId === user.uid);
+  const userSales = sales.filter(sale => sale.userId === user.uid);
+
+  // Inventory Report Calculations for THIS USER
   const inventoryStats = {
-    totalItems: inventory.length,
-    totalSqft: inventory.reduce((sum, item) => sum + item.quantity, 0),
-    totalValue: inventory.reduce((sum, item) => sum + item.totalValue, 0),
-    lowStockItems: inventory.filter(item => item.quantity < 10).length,
-    byType: inventory.reduce((acc, item) => {
-      acc[item.marbleType] = (acc[item.marbleType] || 0) + item.quantity;
+    totalItems: userInventory.length,
+    totalSqft: userInventory.reduce((sum, item) => sum + (item.quantity || 0), 0),
+    totalValue: userInventory.reduce((sum, item) => sum + (item.totalValue || 0), 0),
+    lowStockItems: userInventory.filter(item => item.quantity < 10).length,
+    byType: userInventory.reduce((acc, item) => {
+      acc[item.marbleType] = (acc[item.marbleType] || 0) + (item.quantity || 0);
       return acc;
     }, {})
   };
 
-  // Sales Report Calculations
-  const filteredSales = sales.filter(sale => {
-    const saleDate = new Date(sale.date).toISOString().split('T')[0];
-    return saleDate >= dateRange.start && saleDate <= dateRange.end;
+  // Sales Report Calculations for THIS USER
+  const filteredSales = userSales.filter(sale => {
+    if (!sale.date) return false;
+    try {
+      const saleDate = sale.date.toDate ? sale.date.toDate() : new Date(sale.date);
+      const saleDateStr = saleDate.toISOString().split('T')[0];
+      return saleDateStr >= dateRange.start && saleDateStr <= dateRange.end;
+    } catch (error) {
+      return false;
+    }
   });
 
   const salesStats = {
     totalSales: filteredSales.length,
-    totalQuantity: filteredSales.reduce((sum, sale) => sum + sale.quantity, 0),
-    totalAmount: filteredSales.reduce((sum, sale) => sum + sale.totalAmount, 0),
-    totalProfit: filteredSales.reduce((sum, sale) => sum + sale.totalProfit, 0),
+    totalQuantity: filteredSales.reduce((sum, sale) => sum + (sale.quantity || 0), 0),
+    totalAmount: filteredSales.reduce((sum, sale) => sum + (sale.totalAmount || 0), 0),
+    totalProfit: filteredSales.reduce((sum, sale) => sum + (sale.totalProfit || 0), 0),
     byMarbleType: filteredSales.reduce((acc, sale) => {
-      acc[sale.marbleType] = (acc[sale.marbleType] || 0) + sale.quantity;
+      acc[sale.marbleType] = (acc[sale.marbleType] || 0) + (sale.quantity || 0);
       return acc;
     }, {}),
     byCustomer: filteredSales.reduce((acc, sale) => {
-      acc[sale.customerName] = (acc[sale.customerName] || 0) + sale.quantity;
+      acc[sale.customerName] = (acc[sale.customerName] || 0) + (sale.quantity || 0);
       return acc;
     }, {})
   };
 
-  // Profit Report Calculations
+  // Profit Report Calculations for THIS USER
   const profitStats = {
     avgProfitPerSqft: salesStats.totalQuantity > 0 
       ? salesStats.totalProfit / salesStats.totalQuantity 
@@ -50,7 +60,7 @@ const Reports = ({ inventory, sales, customers }) => {
       ? salesStats.totalProfit / salesStats.totalSales 
       : 0,
     topProfitableItems: [...filteredSales]
-      .sort((a, b) => b.totalProfit - a.totalProfit)
+      .sort((a, b) => (b.totalProfit || 0) - (a.totalProfit || 0))
       .slice(0, 10)
   };
 
@@ -58,10 +68,26 @@ const Reports = ({ inventory, sales, customers }) => {
     window.print();
   };
 
+  const formatDate = (timestamp) => {
+    if (!timestamp) return 'N/A';
+    try {
+      const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+      return date.toLocaleDateString();
+    } catch (error) {
+      return 'Invalid Date';
+    }
+  };
+
   return (
     <div>
       <div className="d-flex justify-content-between align-items-center mb-4">
-        <h2>Reports</h2>
+        <div>
+          <h2>Reports</h2>
+          <small className="text-muted">
+            <i className="bi bi-person me-1"></i>
+            {user.name}'s Reports
+          </small>
+        </div>
         <button className="btn btn-primary" onClick={handlePrintReport}>
           <i className="bi bi-printer me-2"></i>Print Report
         </button>
@@ -75,7 +101,7 @@ const Reports = ({ inventory, sales, customers }) => {
                 className={`nav-link ${activeReport === 'inventory' ? 'active' : ''}`}
                 onClick={() => setActiveReport('inventory')}
               >
-                Inventory Report
+                My Inventory Report
               </button>
             </li>
             <li className="nav-item">
@@ -83,7 +109,7 @@ const Reports = ({ inventory, sales, customers }) => {
                 className={`nav-link ${activeReport === 'sales' ? 'active' : ''}`}
                 onClick={() => setActiveReport('sales')}
               >
-                Sales Report
+                My Sales Report
               </button>
             </li>
             <li className="nav-item">
@@ -91,7 +117,7 @@ const Reports = ({ inventory, sales, customers }) => {
                 className={`nav-link ${activeReport === 'profit' ? 'active' : ''}`}
                 onClick={() => setActiveReport('profit')}
               >
-                Profit Report
+                My Profit Report
               </button>
             </li>
           </ul>
@@ -122,7 +148,7 @@ const Reports = ({ inventory, sales, customers }) => {
               <div className="col-md-6 d-flex align-items-end">
                 <div className="alert alert-info mb-0 w-100">
                   <i className="bi bi-info-circle me-2"></i>
-                  Showing data from {dateRange.start} to {dateRange.end}
+                  Showing {user.name}'s data from {dateRange.start} to {dateRange.end}
                 </div>
               </div>
             </div>
@@ -135,7 +161,7 @@ const Reports = ({ inventory, sales, customers }) => {
                 <div className="col-md-3">
                   <div className="card bg-light">
                     <div className="card-body text-center">
-                      <h6>Total Items</h6>
+                      <h6>My Total Items</h6>
                       <h3>{inventoryStats.totalItems}</h3>
                     </div>
                   </div>
@@ -143,7 +169,7 @@ const Reports = ({ inventory, sales, customers }) => {
                 <div className="col-md-3">
                   <div className="card bg-light">
                     <div className="card-body text-center">
-                      <h6>Available Sq.Ft</h6>
+                      <h6>My Available Sq.Ft</h6>
                       <h3>{inventoryStats.totalSqft.toLocaleString()}</h3>
                     </div>
                   </div>
@@ -151,7 +177,7 @@ const Reports = ({ inventory, sales, customers }) => {
                 <div className="col-md-3">
                   <div className="card bg-light">
                     <div className="card-body text-center">
-                      <h6>Total Value</h6>
+                      <h6>My Total Value</h6>
                       <h3>{inventoryStats.totalValue.toLocaleString()} PKR</h3>
                     </div>
                   </div>
@@ -159,7 +185,7 @@ const Reports = ({ inventory, sales, customers }) => {
                 <div className="col-md-3">
                   <div className="card bg-light">
                     <div className="card-body text-center">
-                      <h6>Low Stock Items</h6>
+                      <h6>My Low Stock Items</h6>
                       <h3 className={inventoryStats.lowStockItems > 0 ? 'text-danger' : ''}>
                         {inventoryStats.lowStockItems}
                       </h3>
@@ -168,7 +194,7 @@ const Reports = ({ inventory, sales, customers }) => {
                 </div>
               </div>
               
-              <h5>Inventory by Marble Type</h5>
+              <h5>My Inventory by Marble Type</h5>
               <div className="table-responsive mb-4">
                 <table className="table table-hover">
                   <thead>
@@ -182,9 +208,9 @@ const Reports = ({ inventory, sales, customers }) => {
                   </thead>
                   <tbody>
                     {Object.entries(inventoryStats.byType).map(([type, sqft]) => {
-                      const typeItems = inventory.filter(item => item.marbleType === type);
-                      const typeValue = typeItems.reduce((sum, item) => sum + item.totalValue, 0);
-                      const percentage = (sqft / inventoryStats.totalSqft * 100).toFixed(1);
+                      const typeItems = userInventory.filter(item => item.marbleType === type);
+                      const typeValue = typeItems.reduce((sum, item) => sum + (item.totalValue || 0), 0);
+                      const percentage = inventoryStats.totalSqft > 0 ? (sqft / inventoryStats.totalSqft * 100).toFixed(1) : 0;
                       
                       return (
                         <tr key={type}>
@@ -212,7 +238,7 @@ const Reports = ({ inventory, sales, customers }) => {
                 </table>
               </div>
               
-              <h5>Low Stock Alerts</h5>
+              <h5>My Low Stock Alerts</h5>
               {inventoryStats.lowStockItems > 0 ? (
                 <div className="table-responsive">
                   <table className="table table-sm">
@@ -227,7 +253,7 @@ const Reports = ({ inventory, sales, customers }) => {
                       </tr>
                     </thead>
                     <tbody>
-                      {inventory
+                      {userInventory
                         .filter(item => item.quantity < 10)
                         .map((item, index) => (
                           <tr key={index}>
@@ -247,7 +273,7 @@ const Reports = ({ inventory, sales, customers }) => {
               ) : (
                 <div className="alert alert-success">
                   <i className="bi bi-check-circle me-2"></i>
-                  All items have sufficient stock
+                  All my items have sufficient stock
                 </div>
               )}
             </div>
@@ -260,7 +286,7 @@ const Reports = ({ inventory, sales, customers }) => {
                 <div className="col-md-3">
                   <div className="card bg-light">
                     <div className="card-body text-center">
-                      <h6>Total Sales</h6>
+                      <h6>My Total Sales</h6>
                       <h3>{salesStats.totalSales}</h3>
                     </div>
                   </div>
@@ -268,7 +294,7 @@ const Reports = ({ inventory, sales, customers }) => {
                 <div className="col-md-3">
                   <div className="card bg-light">
                     <div className="card-body text-center">
-                      <h6>Quantity Sold</h6>
+                      <h6>My Quantity Sold</h6>
                       <h3>{salesStats.totalQuantity.toLocaleString()} sq.ft</h3>
                     </div>
                   </div>
@@ -276,7 +302,7 @@ const Reports = ({ inventory, sales, customers }) => {
                 <div className="col-md-3">
                   <div className="card bg-light">
                     <div className="card-body text-center">
-                      <h6>Total Amount</h6>
+                      <h6>My Total Amount</h6>
                       <h3>{salesStats.totalAmount.toLocaleString()} PKR</h3>
                     </div>
                   </div>
@@ -284,7 +310,7 @@ const Reports = ({ inventory, sales, customers }) => {
                 <div className="col-md-3">
                   <div className="card bg-light">
                     <div className="card-body text-center">
-                      <h6>Total Profit</h6>
+                      <h6>My Total Profit</h6>
                       <h3 className="text-success">{salesStats.totalProfit.toLocaleString()} PKR</h3>
                     </div>
                   </div>
@@ -293,7 +319,7 @@ const Reports = ({ inventory, sales, customers }) => {
               
               <div className="row">
                 <div className="col-md-6">
-                  <h5>Sales by Marble Type</h5>
+                  <h5>My Sales by Marble Type</h5>
                   <div className="table-responsive mb-4">
                     <table className="table table-sm">
                       <thead>
@@ -307,7 +333,7 @@ const Reports = ({ inventory, sales, customers }) => {
                         {Object.entries(salesStats.byMarbleType)
                           .sort((a, b) => b[1] - a[1])
                           .map(([type, quantity]) => {
-                            const percentage = (quantity / salesStats.totalQuantity * 100).toFixed(1);
+                            const percentage = salesStats.totalQuantity > 0 ? (quantity / salesStats.totalQuantity * 100).toFixed(1) : 0;
                             return (
                               <tr key={type}>
                                 <td>{type}</td>
@@ -332,7 +358,7 @@ const Reports = ({ inventory, sales, customers }) => {
                 </div>
                 
                 <div className="col-md-6">
-                  <h5>Top Customers</h5>
+                  <h5>My Top Customers</h5>
                   <div className="table-responsive mb-4">
                     <table className="table table-sm">
                       <thead>
@@ -348,7 +374,7 @@ const Reports = ({ inventory, sales, customers }) => {
                           .slice(0, 10)
                           .map(([customer, quantity]) => {
                             const customerSales = filteredSales.filter(s => s.customerName === customer);
-                            const amount = customerSales.reduce((sum, sale) => sum + sale.totalAmount, 0);
+                            const amount = customerSales.reduce((sum, sale) => sum + (sale.totalAmount || 0), 0);
                             return (
                               <tr key={customer}>
                                 <td>{customer}</td>
@@ -363,7 +389,7 @@ const Reports = ({ inventory, sales, customers }) => {
                 </div>
               </div>
               
-              <h5>Sales Details</h5>
+              <h5>My Sales Details</h5>
               <div className="table-responsive">
                 <table className="table table-hover">
                   <thead>
@@ -380,13 +406,13 @@ const Reports = ({ inventory, sales, customers }) => {
                   <tbody>
                     {filteredSales.map((sale, index) => (
                       <tr key={index}>
-                        <td>{new Date(sale.date).toLocaleDateString()}</td>
+                        <td>{formatDate(sale.date)}</td>
                         <td>{sale.customerName}</td>
                         <td>{sale.itemName}</td>
                         <td>{sale.quantity} sq.ft</td>
                         <td>{sale.salePrice} PKR</td>
-                        <td>{sale.totalAmount.toFixed(2)} PKR</td>
-                        <td className="text-success">{sale.totalProfit.toFixed(2)} PKR</td>
+                        <td>{(sale.totalAmount || 0).toFixed(2)} PKR</td>
+                        <td className="text-success">{(sale.totalProfit || 0).toFixed(2)} PKR</td>
                       </tr>
                     ))}
                   </tbody>
@@ -402,7 +428,7 @@ const Reports = ({ inventory, sales, customers }) => {
                 <div className="col-md-4">
                   <div className="card bg-success text-white">
                     <div className="card-body text-center">
-                      <h6>Total Profit</h6>
+                      <h6>My Total Profit</h6>
                       <h3>{salesStats.totalProfit.toLocaleString()} PKR</h3>
                     </div>
                   </div>
@@ -410,7 +436,7 @@ const Reports = ({ inventory, sales, customers }) => {
                 <div className="col-md-4">
                   <div className="card bg-info text-white">
                     <div className="card-body text-center">
-                      <h6>Avg. Profit per Sq.Ft</h6>
+                      <h6>My Avg. Profit per Sq.Ft</h6>
                       <h3>{profitStats.avgProfitPerSqft.toFixed(2)} PKR</h3>
                     </div>
                   </div>
@@ -418,14 +444,14 @@ const Reports = ({ inventory, sales, customers }) => {
                 <div className="col-md-4">
                   <div className="card bg-warning text-white">
                     <div className="card-body text-center">
-                      <h6>Avg. Profit per Sale</h6>
+                      <h6>My Avg. Profit per Sale</h6>
                       <h3>{profitStats.avgProfitPerSale.toFixed(2)} PKR</h3>
                     </div>
                   </div>
                 </div>
               </div>
               
-              <h5>Top Profitable Sales</h5>
+              <h5>My Top Profitable Sales</h5>
               <div className="table-responsive mb-4">
                 <table className="table table-hover">
                   <thead>
@@ -447,13 +473,13 @@ const Reports = ({ inventory, sales, customers }) => {
                             #{index + 1}
                           </span>
                         </td>
-                        <td>{new Date(sale.date).toLocaleDateString()}</td>
+                        <td>{formatDate(sale.date)}</td>
                         <td>{sale.customerName}</td>
                         <td>{sale.itemName}</td>
                         <td>{sale.quantity} sq.ft</td>
-                        <td>{sale.profitPerSqft.toFixed(2)} PKR</td>
+                        <td>{(sale.profitPerSqft || 0).toFixed(2)} PKR</td>
                         <td className="text-success fw-bold">
-                          {sale.totalProfit.toFixed(2)} PKR
+                          {(sale.totalProfit || 0).toFixed(2)} PKR
                         </td>
                       </tr>
                     ))}
@@ -461,7 +487,7 @@ const Reports = ({ inventory, sales, customers }) => {
                 </table>
               </div>
               
-              <h5>Profit by Marble Type</h5>
+              <h5>My Profit by Marble Type</h5>
               <div className="table-responsive">
                 <table className="table">
                   <thead>
@@ -477,8 +503,8 @@ const Reports = ({ inventory, sales, customers }) => {
                   <tbody>
                     {Object.entries(salesStats.byMarbleType).map(([type, quantity]) => {
                       const typeSales = filteredSales.filter(s => s.marbleType === type);
-                      const amount = typeSales.reduce((sum, sale) => sum + sale.totalAmount, 0);
-                      const profit = typeSales.reduce((sum, sale) => sum + sale.totalProfit, 0);
+                      const amount = typeSales.reduce((sum, sale) => sum + (sale.totalAmount || 0), 0);
+                      const profit = typeSales.reduce((sum, sale) => sum + (sale.totalProfit || 0), 0);
                       const avgProfit = quantity > 0 ? profit / quantity : 0;
                       
                       return (
@@ -504,7 +530,7 @@ const Reports = ({ inventory, sales, customers }) => {
         <div className="card-footer">
           <div className="d-flex justify-content-between align-items-center">
             <small className="text-muted">
-              Report generated on {new Date().toLocaleDateString()} at {new Date().toLocaleTimeString()}
+              {user.name}'s report generated on {new Date().toLocaleDateString()} at {new Date().toLocaleTimeString()}
             </small>
             <div>
               <button className="btn btn-sm btn-outline-primary me-2">

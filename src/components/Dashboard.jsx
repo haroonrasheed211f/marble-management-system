@@ -1,11 +1,11 @@
-// components/Dashboard.jsx
+// components/Dashboard.jsx - FIXED
 import React from 'react';
 
 const Dashboard = ({ inventory, sales, customers, user }) => {
   // Add user filter to all calculations
   const userInventory = inventory.filter(item => item.userId === user.uid);
   const userSales = sales.filter(sale => sale.userId === user.uid);
-  const userCustomers = customers.filter(customer => customer.userId === user.uid);
+  // Remove unused variable: const userCustomers = customers.filter(customer => customer.userId === user.uid);
   
   // Now calculate metrics using USER-SPECIFIC data
   const totalInventoryValue = userInventory.reduce((sum, item) => sum + (item.totalValue || 0), 0);
@@ -16,9 +16,13 @@ const Dashboard = ({ inventory, sales, customers, user }) => {
   
   const todaySales = userSales.filter(sale => {
     if (!sale.date) return false;
-    const saleDate = sale.date.toDate ? sale.date.toDate() : new Date(sale.date);
-    saleDate.setHours(0, 0, 0, 0);
-    return saleDate.getTime() === today.getTime();
+    try {
+      const saleDate = sale.date.toDate ? sale.date.toDate() : new Date(sale.date);
+      saleDate.setHours(0, 0, 0, 0);
+      return saleDate.getTime() === today.getTime();
+    } catch (error) {
+      return false;
+    }
   });
   
   const todaySalesTotal = todaySales.reduce((sum, sale) => sum + (sale.totalAmount || 0), 0);
